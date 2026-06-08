@@ -3,7 +3,7 @@
 	import { getApi } from '$lib/api/api';
 
 	import Button from '$lib/components/Button/Button.svelte';
-	import type { ReaperMarker } from '$lib/models/reaper-marker';
+	import { getSongEnd, getSongStart, type ReaperMarker } from '$lib/models/reaper-marker';
 	import type { ReaperTab } from '$lib/models/reaper-tab';
 	import {
 		PLAYSTATE_PAUSED,
@@ -13,6 +13,7 @@
 		type PlayState,
 		type ReaperTransport
 	} from '$lib/models/reaper-transport';
+	import { PlaybackEngine } from '$lib/playback/playback-engine';
 	import { formatDuration } from '$lib/util';
 	import { onDestroy, onMount } from 'svelte';
 	// Icons
@@ -22,8 +23,23 @@
 	import SkipNextIcon from 'virtual:icons/mdi/skip-next';
 	import SkipPreviousIcon from 'virtual:icons/mdi/skip-previous';
 	import StopIcon from 'virtual:icons/mdi/stop';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
 
 	const api = getApi();
+	const engine = new PlaybackEngine(api.reaper, {
+		warning: (msg) => notifications.warning(msg),
+		onAdvanced: () => {
+			// Pull fresh tabs + markers + transport so the UI reflects the new song
+			// without waiting for the next 5-second tabs poll.
+			void (async () => {
+				await refreshTabs();
+				await refreshMarkers();
+				await refreshTransport();
+			})();
+		}
+	});
 
 	// Player state
 	let allTabs = $state<ReaperTab[] | null>(null);
@@ -45,6 +61,11 @@
 
 	// Song markers (placeholder data - would come from Reaper)
 	let songMarkers = $state<ReaperMarker[]>([]);
+
+	// Effective song bounds derived from `=START`/`=END` markers with fall-back
+	// to the tab's project length.
+	const songStart = $derived(getSongStart(songMarkers));
+	const songEnd = $derived(getSongEnd(songMarkers, currentTab?.length ?? 0));
 
 	// Time calculations
 	const totalSongDuration = $derived(currentTab?.length || 0);
@@ -144,7 +165,12 @@
 
 	async function goToStart() {
 		try {
-			const transport = await api.reaper.goToStart();
+			// Prefer the `=START` marker when the song defines one; otherwise the
+			// underlying Reaper "Go to start" action (40042) drops us to position 0.
+			const startMarker = songMarkers.find((m) => m.name === '=START');
+			const transport = startMarker
+				? await api.reaper.goToMarker(startMarker.id)
+				: await api.reaper.goToStart();
 			updateTransport(transport);
 		} catch (error) {
 			notifications.error(`Failed to jump to song start: ${(error as Error).message}`);
@@ -166,6 +192,7 @@
 		if (transport) {
 			playState = transport.playState;
 			currentSongTime = transport.positionSeconds;
+			engine.onTransportTick(transport, songEnd);
 		} else {
 			playState = PLAYSTATE_STOPPED;
 			currentSongTime = 0;
@@ -200,16 +227,23 @@
 			if (allTabs !== response.tabs || currentSongIndex !== response.activeIndex) {
 				allTabs = response.tabs;
 				currentSongIndex = response.activeIndex;
+				engine.setCurrentIndex(currentSongIndex);
 				await refreshMarkers(); // Refresh markers after tabs update
 			}
 
 			if (currentSongIndex < 0 || currentSongIndex >= allTabs.length) {
 				currentSongIndex = 0; // Reset to first song if index is out of bounds
+				engine.setCurrentIndex(currentSongIndex);
 			}
 		} catch (error) {
 			console.error(`Failed to refresh tabs: ${(error as Error).message}`);
 		}
 	}
+
+	// Sync the engine whenever the playback context (the loaded setlist) changes.
+	$effect(() => {
+		engine.setItems(data.set?.items ?? []);
+	});
 
 	// Load sample data (in real app, this would come from route params)
 	onMount(async () => {
@@ -234,6 +268,7 @@
 		if (tabsUpdateHandle) {
 			window.clearInterval(tabsUpdateHandle);
 		}
+		engine.dispose();
 	});
 </script>
 

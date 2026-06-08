@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { notifications } from '$lib';
 	import { getApi } from '$lib/api/api';
 	import { Commands } from '$lib/api/reaper-backend/commands';
@@ -63,8 +64,8 @@
 			});
 		}
 
-		set.songs.forEach((songId, index) => {
-			const song = songs[songId];
+		set.items.forEach((item, index) => {
+			const song = songs[item.songId];
 
 			// Add new tab step for all songs except the first, or for first song if not replacing tabs
 			if (index > 0 || !replaceExistingTabs) {
@@ -79,7 +80,7 @@
 
 			// Add load song step
 			newSteps.push({
-				id: `load-song-${songId}`,
+				id: `load-song-${item.songId}-${index}`,
 				title: `Load ${song.name}`,
 				description: `Load the project file for ${song.name}`,
 				status: 'pending',
@@ -99,7 +100,7 @@
 		});
 
 		// Add step to switch to the first song tab after all songs are loaded
-		if (set.songs.length > 0) {
+		if (set.items.length > 0) {
 			newSteps.push({
 				id: 'switch-to-first-song',
 				title: 'Switch to First Song',
@@ -256,6 +257,12 @@
 
 				// Small delay between steps for better UX
 				await new Promise((resolve) => setTimeout(resolve, 200));
+			}
+
+			// Once tabs are staged, hand off to the player with this setlist in
+			// context so the playback engine can apply per-item play configs.
+			if (set) {
+				await goto(`#/play?set=${encodeURIComponent(set.id)}`);
 			}
 		} catch (error) {
 			console.error('Error during setlist loading:', error);
