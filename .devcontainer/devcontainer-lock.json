@@ -1,0 +1,14 @@
+{
+  "features": {
+    "ghcr.io/lumenpink/devcontainer-features/bun:0": {
+      "version": "0.0.1",
+      "resolved": "ghcr.io/lumenpink/devcontainer-features/bun@sha256:92ef26099b83fe1202123734fff18db1b51dcdbce532c6cf7a79525e163e2ce9",
+      "integrity": "sha256:92ef26099b83fe1202123734fff18db1b51dcdbce532c6cf7a79525e163e2ce9"
+    },
+    "ghcr.io/prulloac/devcontainer-features/lua:1": {
+      "version": "1.0.0",
+      "resolved": "ghcr.io/prulloac/devcontainer-features/lua@sha256:716e06160055b24c1a4730146d8ce6b096b24a23d92aa8ba5dd4b3464225bcad",
+      "integrity": "sha256:716e06160055b24c1a4730146d8ce6b096b24a23d92aa8ba5dd4b3464225bcad"
+    }
+  }
+}

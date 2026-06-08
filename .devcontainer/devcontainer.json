@@ -8,6 +8,10 @@
 		"ghcr.io/lumenpink/devcontainer-features/bun:0": {},
 		"ghcr.io/prulloac/devcontainer-features/lua:1": {}
 	},
+	// Make the host machine reachable as `host.docker.internal` from inside
+	// the container — needed on Linux hosts so the vite dev-server proxy can
+	// reach a Reaper web instance running on the host.
+	"runArgs": ["--add-host=host.docker.internal:host-gateway"],
 	"customizations": {
 		"vscode": {
 			"extensions": [
