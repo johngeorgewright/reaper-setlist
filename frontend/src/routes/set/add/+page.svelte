@@ -14,7 +14,7 @@
 	let set = $state<NewSetlist>({
 		venue: '',
 		date: new Date().toISOString(),
-		songs: []
+		items: []
 	});
 	const errorMessage = data.error;
 	const api = getApi();

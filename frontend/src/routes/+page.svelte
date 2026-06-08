@@ -100,8 +100,8 @@
 					<span class="venue">{item.venue}</span>
 				</div>
 				<div class="set-details">
-					<span class="song-count">{item.songs.length} song{item.songs.length > 1 ? 's' : ''}</span>
-					<span class="duration">{formatDuration(item.songs.map((songId) => songs[songId]?.length || 0).reduce((a, b) => a + b, 0))}</span>
+					<span class="song-count">{item.items.length} song{item.items.length > 1 ? 's' : ''}</span>
+					<span class="duration">{formatDuration(item.items.map((entry) => songs[entry.songId]?.length || 0).reduce((a, b) => a + b, 0))}</span>
 				</div>
 			</div>
 		{/snippet}

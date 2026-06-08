@@ -15,7 +15,7 @@
 	import Form from '../Form/Form.svelte';
 
 	import type { Database } from '$lib/models/database';
-	import type { NewSetlist, Setlist } from '$lib/models/setlist';
+	import type { NewSetlist, Setlist, SetlistItem } from '$lib/models/setlist';
 	import type { Song } from '$lib/models/song';
 	import { formatDuration } from '$lib/util';
 	import DeleteIcon from 'virtual:icons/mdi/delete';
@@ -28,18 +28,21 @@
 
 	let setlist = $state({ ...initialSetlist });
 
+	let usedSongIds = $derived(new Set(setlist.items.map((item) => item.songId)));
 	let remainingSongs = $derived(
 		Object.values(songs)
-			.filter((s) => !setlist.songs.includes(s.id))
+			.filter((s) => !usedSongIds.has(s.id))
 			.toSorted((a, b) => a.name.localeCompare(b.name))
 	);
 
 	let newSongId = $state<string | null>(
 		Object.values(songs)
-			.filter((s) => !setlist.songs.includes(s.id))
+			.filter((s) => !setlist.items.some((item) => item.songId === s.id))
 			.toSorted((a, b) => a.name.localeCompare(b.name))[0]?.id || null
 	);
-	let totalTime = $derived(setlist.songs.reduce((acc, songId) => acc + (songs[songId]?.length ?? 0) || 0, 0));
+	let totalTime = $derived(
+		setlist.items.reduce((acc, item) => acc + (songs[item.songId]?.length ?? 0), 0)
+	);
 
 	let draggingIndex: number | undefined = $state(undefined);
 	let draggingTargetIndex: number | undefined = $state(undefined);
@@ -49,7 +52,8 @@
 		if (!newSongId || !songs[newSongId]) return;
 		const song = songs[newSongId];
 		if (song) {
-			setlist.songs.push(song.id);
+			const newItem: SetlistItem = { songId: song.id, playConfig: { mode: 'pause' } };
+			setlist.items.push(newItem);
 			newSongId = remainingSongs[0]?.id || null;
 		}
 	}
@@ -77,9 +81,9 @@
 
 	function onDragEnd() {
 		if (draggingIndex !== undefined && draggingTargetIndex !== undefined) {
-			const removedItem = setlist.songs.splice(draggingIndex, 1)[0];
+			const removedItem = setlist.items.splice(draggingIndex, 1)[0];
 			const adjustedIndex = draggingTargetIndex > draggingIndex ? draggingTargetIndex - 1 : draggingTargetIndex;
-			setlist.songs.splice(adjustedIndex, 0, removedItem);
+			setlist.items.splice(adjustedIndex, 0, removedItem);
 		}
 		draggingIndex = undefined;
 		draggingTargetIndex = undefined;
@@ -110,7 +114,7 @@
 			<dd>{formatDuration(totalTime)}</dd>
 		</dl>
 		<div class="items" bind:this={itemsRef}>
-			{#each setlist.songs as songId, i (i)}
+			{#each setlist.items as item, i (i)}
 				<div class="item-container" animate:flip={{ duration: 300 }} transition:fly={{ duration: 300 }}>
 					{#if draggingTargetIndex === i}
 						<div class="drag-target" in:fade={{ duration: 200 }}></div>
@@ -118,14 +122,14 @@
 					<div class="list-item" class:dragging={draggingIndex === i}>
 						<Draggable onmove={(y) => onDragMove(y)} onstart={() => onDragStart(i)} onend={() => onDragEnd()} />
 						<div class="song-info">
-							<span class="song-name">{songs[songId]?.name}</span>
-							<span class="song-duration">{formatDuration(songs[songId]?.length || 0)}</span>
+							<span class="song-name">{songs[item.songId]?.name}</span>
+							<span class="song-duration">{formatDuration(songs[item.songId]?.length || 0)}</span>
 						</div>
-						<Button color="delete" onclick={() => setlist.songs.splice(i, 1)} variant="icon"><DeleteIcon /></Button>
+						<Button color="delete" onclick={() => setlist.items.splice(i, 1)} variant="icon"><DeleteIcon /></Button>
 					</div>
 				</div>
 			{/each}
-			{#if draggingTargetIndex === setlist.songs.length}
+			{#if draggingTargetIndex === setlist.items.length}
 				<div class="drag-target"></div>
 			{/if}
 		</div>

@@ -7,6 +7,7 @@
 	import type { StepStatus } from '$lib/components/Step/Step.svelte';
 	import Step from '$lib/components/Step/Step.svelte';
 	import type { Backup } from '$lib/models/backup';
+	import { migrateSetlist, type Setlist } from '$lib/models/setlist';
 	import { generateUUID } from '$lib/util';
 	import ExportIcon from 'virtual:icons/mdi/export';
 	import ImportIcon from 'virtual:icons/mdi/import';
@@ -173,12 +174,13 @@
 
 					// Step 2: Import setlists with updated song IDs
 					for (const setlist of Object.values(importedData.sets)) {
-						const { ...setlistWithoutId } = setlist;
-						const updatedSetlist = {
-							...setlistWithoutId,
-							songs: setlist.songs.map((oldSongId) => oldToNewSongIdMap.get(oldSongId) || oldSongId)
-						};
-						await api.sets.add(updatedSetlist);
+						const migrated = migrateSetlist(setlist as unknown as Setlist);
+						const { id: _id, ...rest } = migrated;
+						const remappedItems = rest.items.map((item) => ({
+							...item,
+							songId: oldToNewSongIdMap.get(item.songId) || item.songId
+						}));
+						await api.sets.add({ ...rest, items: remappedItems });
 					}
 
 					notifications.success('Data imported successfully!');
