@@ -42,11 +42,22 @@ export class MockReaperFetch {
 	private playState: PlayState = PLAYSTATE_STOPPED;
 	private repeatOn = false;
 
+	/**
+	 * Simulated state of action 41816 — "Project tabs: Run background
+	 * projects". Real Reaper persists this preference across restarts; the
+	 * mock mirrors that by storing it in ExtState. Tests can flip it with
+	 * `setBackgroundProjectsEnabled`; the play page also flips it by sending
+	 * the 41816 action directly.
+	 */
+	private backgroundProjectsEnabled = false;
+
 	private tickHandle: number | null = null;
 
 	constructor() {
 		this.extState = this.loadExtState();
 		this.ensureMockDefaults();
+		this.backgroundProjectsEnabled =
+			this.getExtState(SectionKeys.ReaperSetlist, 'mockBackgroundProjects') === 'true';
 		this.startTicker();
 	}
 
@@ -82,6 +93,20 @@ export class MockReaperFetch {
 			clearInterval(this.tickHandle);
 			this.tickHandle = null;
 		}
+	}
+
+	/**
+	 * Test hook: toggle the simulated state of action 41816 ("Project tabs:
+	 * Run background projects"). The `isBackgroundProjectsEnabled` script
+	 * operation reads this flag.
+	 */
+	setBackgroundProjectsEnabled(enabled: boolean): void {
+		this.backgroundProjectsEnabled = enabled;
+		this.setExtState(
+			SectionKeys.ReaperSetlist,
+			'mockBackgroundProjects',
+			enabled ? 'true' : 'false'
+		);
 	}
 
 	// --- command dispatch -------------------------------------------------
@@ -174,6 +199,9 @@ export class MockReaperFetch {
 				this.tabs = [];
 				this.activeIndex = -1;
 				this.playState = PLAYSTATE_STOPPED;
+				return [];
+			case '41816': // Project tabs: Run background projects (toggle)
+				this.setBackgroundProjectsEnabled(!this.backgroundProjectsEnabled);
 				return [];
 		}
 
@@ -320,6 +348,13 @@ export class MockReaperFetch {
 			const section = this.consumeExtState(SectionKeys.ReaperSetlist, 'section');
 			const key = this.consumeExtState(SectionKeys.ReaperSetlist, 'key');
 			if (section && key) this.deleteExtState(section, key);
+		},
+		isBackgroundProjectsEnabled: () => {
+			this.setExtState(
+				SectionKeys.ReaperSetlist,
+				'enabled',
+				this.backgroundProjectsEnabled ? 'true' : 'false'
+			);
 		}
 	};
 

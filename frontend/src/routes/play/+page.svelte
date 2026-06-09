@@ -29,7 +29,6 @@
 
 	const api = getApi();
 	const engine = new PlaybackEngine(api.reaper, {
-		warning: (msg) => notifications.warning(msg),
 		onAdvanced: () => {
 			// Pull fresh tabs + markers + transport so the UI reflects the new song
 			// without waiting for the next 5-second tabs poll.
@@ -40,6 +39,33 @@
 			})();
 		}
 	});
+
+	/**
+	 * Tracks whether we've already issued the crossover precondition check for
+	 * the current setlist instance. The check itself is idempotent on the
+	 * Reaper side (we only toggle when it's off), but suppressing the redundant
+	 * round-trips avoids extra notifications when the items array reference
+	 * changes for unrelated reasons.
+	 */
+	let crossoverCheckedForSetlist = false;
+
+	async function ensureBackgroundProjectsEnabled(): Promise<void> {
+		try {
+			const enabled = await api.script.isBackgroundProjectsEnabled();
+			if (enabled) return;
+			// 41816 = "Project tabs: Run background projects (process audio when not active)".
+			// The action is a toggle; we only get here when it's off, so this turns it on.
+			await api.reaper.sendCommand('41816');
+			notifications.info(
+				'Enabled "Project tabs: Run background projects" so crossover transitions can overlap songs.'
+			);
+		} catch (error) {
+			notifications.warning(
+				'Could not verify "Project tabs: Run background projects". Crossover transitions may cut the previous song. ' +
+					`(${(error as Error).message})`
+			);
+		}
+	}
 
 	// Player state
 	let allTabs = $state<ReaperTab[] | null>(null);
@@ -241,8 +267,19 @@
 	}
 
 	// Sync the engine whenever the playback context (the loaded setlist) changes.
+	// Also gate the crossover precondition check so we only run it once per
+	// setlist load and only when the setlist actually uses crossover items.
 	$effect(() => {
-		engine.setItems(data.set?.items ?? []);
+		const items = data.set?.items ?? [];
+		engine.setItems(items);
+
+		const hasCrossover = items.some((item) => item.playConfig.mode === 'crossover');
+		if (hasCrossover && !crossoverCheckedForSetlist) {
+			crossoverCheckedForSetlist = true;
+			void ensureBackgroundProjectsEnabled();
+		} else if (!hasCrossover) {
+			crossoverCheckedForSetlist = false;
+		}
 	});
 
 	// Load sample data (in real app, this would come from route params)

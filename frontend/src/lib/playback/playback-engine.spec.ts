@@ -152,12 +152,4 @@ describe('PlaybackEngine', () => {
 		engine.onTransportTick(transport(56), 60); // 4s remaining — fire
 		expect(reaper.nextTab).toHaveBeenCalledTimes(1);
 	});
-
-	it('emits a warning the first time crossover items are configured', () => {
-		const warn = vi.fn();
-		const e = new PlaybackEngine(reaper, { warning: warn });
-		e.setItems(items([{ mode: 'pause' }, { mode: 'crossover', leadSeconds: 2 }]));
-		e.setItems(items([{ mode: 'pause' }, { mode: 'crossover', leadSeconds: 2 }]));
-		expect(warn).toHaveBeenCalledTimes(1);
-	});
 });

@@ -26,4 +26,10 @@ export interface ScriptOperations {
 	getOpenTabs: () => TabsResponse;
 	writeChunkedData: <T>(section: string, key: string, chunks: Chunkable<T>) => void;
 	deleteState: (section: string, key: string) => void;
+	/**
+	 * Whether Reaper's "Project tabs: Run background projects" mode (action
+	 * 41816) is currently enabled. The playback engine uses this to decide
+	 * whether crossover mode can audibly overlap songs.
+	 */
+	isBackgroundProjectsEnabled: () => { enabled: boolean };
 }

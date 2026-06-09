@@ -21,6 +21,7 @@ local GetProjectLength = require "operations/get_project_length"
 local GetOpenTabs = require "operations/get_open_tabs"
 local WriteChunkedData = require "operations/write_chunked_data"
 local DeleteState = require "operations/delete_state"
+local IsBackgroundProjectsEnabled = require "operations/is_background_projects_enabled"
 
 ---@class ReaperTab
 ---@field index number
@@ -160,6 +161,16 @@ local Operations = {
 
 		reaper.DeleteExtState(Globals.SECTION, "section", true)
 		reaper.DeleteExtState(Globals.SECTION, "key", true)
+	end),
+
+	["isBackgroundProjectsEnabled"] = safe_operation(function()
+		local enabled = IsBackgroundProjectsEnabled()
+
+		if enabled == nil or enabled == '' then
+			error("Operation isBackgroundProjectsEnabled failed to return required output: enabled")
+		end
+
+		reaper.SetExtState(Globals.SECTION, "enabled", enabled and "true" or "false", false)
 	end),
 }
 

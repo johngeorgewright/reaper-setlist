@@ -89,6 +89,23 @@ describe('MockReaperFetch via ReaperBackend', () => {
 		expect(transport.positionSeconds).toBeCloseTo(42.5, 3);
 	});
 
+	it('reports the simulated background-projects toggle state', async () => {
+		// Defaults to off; the mock exposes a test hook for flipping it.
+		expect(await backend.script.isBackgroundProjectsEnabled()).toBe(false);
+		mock.setBackgroundProjectsEnabled(true);
+		expect(await backend.script.isBackgroundProjectsEnabled()).toBe(true);
+		mock.setBackgroundProjectsEnabled(false);
+		expect(await backend.script.isBackgroundProjectsEnabled()).toBe(false);
+	});
+
+	it('treats action 41816 as a toggle for background-projects', async () => {
+		expect(await backend.script.isBackgroundProjectsEnabled()).toBe(false);
+		await backend.reaper.sendCommand('41816');
+		expect(await backend.script.isBackgroundProjectsEnabled()).toBe(true);
+		await backend.reaper.sendCommand('41816');
+		expect(await backend.script.isBackgroundProjectsEnabled()).toBe(false);
+	});
+
 	it('round-trips songs through the KVS', async () => {
 		const song: Omit<Song, 'id'> = {
 			name: 'Test Song',

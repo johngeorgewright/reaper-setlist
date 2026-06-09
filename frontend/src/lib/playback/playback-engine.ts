@@ -13,10 +13,9 @@ export type EngineDecision =
 	| { kind: 'scheduleAdvance'; afterMs: number }; // wait then advance + play
 
 /**
- * Optional sink for advisory messages and host-driven side effects.
+ * Optional sink for host-driven side effects.
  */
 export interface PlaybackEngineSink {
-	warning?(message: string): void;
 	/**
 	 * Invoked after the engine successfully advances to the next tab and starts
 	 * playback. The host should refresh tabs/markers so the UI catches up
@@ -45,7 +44,6 @@ export class PlaybackEngine {
 	private currentIndex = -1;
 	private firedForIndex: number | null = null;
 	private timerHandle: ReturnType<typeof setTimeout> | null = null;
-	private hasWarnedCrossover = false;
 
 	constructor(
 		private readonly reaper: ReaperApiClient,
@@ -59,7 +57,6 @@ export class PlaybackEngine {
 	setItems(items: readonly SetlistItem[]): void {
 		this.items = items;
 		this.reset();
-		this.maybeWarnCrossover();
 	}
 
 	/**
@@ -138,17 +135,6 @@ export class PlaybackEngine {
 		await this.reaper.nextTab();
 		await this.reaper.play();
 		this.sink.onAdvanced?.();
-	}
-
-	private maybeWarnCrossover(): void {
-		if (this.hasWarnedCrossover) return;
-		const hasCrossover = this.items.some((item) => item.playConfig.mode === 'crossover');
-		if (!hasCrossover) return;
-		this.hasWarnedCrossover = true;
-		this.sink.warning?.(
-			'Crossover mode requires "Project tabs: Run background projects" to be enabled in Reaper. ' +
-				'Without it, the previous song will pause when the next one starts.'
-		);
 	}
 }
 
