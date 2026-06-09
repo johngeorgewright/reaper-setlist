@@ -15,11 +15,12 @@
 	import Form from '../Form/Form.svelte';
 
 	import type { Database } from '$lib/models/database';
-	import type { NewSetlist, Setlist, SetlistItem } from '$lib/models/setlist';
+	import type { NewSetlist, PlayConfig, Setlist, SetlistItem } from '$lib/models/setlist';
 	import type { Song } from '$lib/models/song';
 	import { formatDuration } from '$lib/util';
 	import DeleteIcon from 'virtual:icons/mdi/delete';
 	import Draggable from '../Draggable/Draggable.svelte';
+	import PlayConfigEditor from './PlayConfigEditor.svelte';
 
 	// eslint-disable-next-line no-undef
 	type T = $$Generic<SetlistLike>;
@@ -127,6 +128,12 @@
 						</div>
 						<Button color="delete" onclick={() => setlist.items.splice(i, 1)} variant="icon"><DeleteIcon /></Button>
 					</div>
+					{#if i < setlist.items.length - 1}
+						<PlayConfigEditor
+							config={setlist.items[i + 1].playConfig}
+							onChange={(config: PlayConfig) => (setlist.items[i + 1].playConfig = config)}
+						/>
+					{/if}
 				</div>
 			{/each}
 			{#if draggingTargetIndex === setlist.items.length}

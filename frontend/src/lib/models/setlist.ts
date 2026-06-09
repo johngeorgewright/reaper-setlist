@@ -1,10 +1,10 @@
 /**
  * Per-item playback configuration. Determines what happens when the setlist
- * advances to this item — see also `PlayConfigMode` for the union of modes.
+ * advances *into* this item from the previous one — see also `PlayConfigMode`
+ * for the union of modes.
  *
- * Note: the first item in a setlist may only use `pause` or `timer`, since
- * `play` and `crossover` are defined relative to the previous item which
- * does not exist for index 0.
+ * The first item's `playConfig` is unused, since there is no previous item
+ * to transition from. The user always starts the first song manually.
  */
 export type PlayConfig =
 	| { mode: 'pause' }
@@ -61,4 +61,29 @@ export function migrateSetlist(raw: Setlist | LegacySetlist | Record<string, unk
 		venue: legacy.venue,
 		items: songs.map((songId) => ({ songId, playConfig: { mode: 'pause' } }))
 	};
+}
+
+/**
+ * Default values used when the editor switches an item's play config from one
+ * mode to another. Centralised so the same defaults apply everywhere.
+ */
+export const DEFAULT_TIMER_DELAY_SECONDS = 3;
+export const DEFAULT_CROSSOVER_LEAD_SECONDS = 2;
+
+/**
+ * Build a fresh `PlayConfig` for the given mode using the default numeric
+ * values. Used by the editor when the user picks a different mode from the
+ * dropdown — the discriminated union changes shape, so we need a constructor.
+ */
+export function defaultPlayConfig(mode: PlayConfigMode): PlayConfig {
+	switch (mode) {
+		case 'pause':
+			return { mode: 'pause' };
+		case 'play':
+			return { mode: 'play' };
+		case 'timer':
+			return { mode: 'timer', delaySeconds: DEFAULT_TIMER_DELAY_SECONDS };
+		case 'crossover':
+			return { mode: 'crossover', leadSeconds: DEFAULT_CROSSOVER_LEAD_SECONDS };
+	}
 }
