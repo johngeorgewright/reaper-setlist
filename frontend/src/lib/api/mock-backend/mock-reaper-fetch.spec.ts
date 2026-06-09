@@ -9,6 +9,7 @@ import {
 	PLAYSTATE_STOPPED
 } from '$lib/models/reaper-transport';
 import type { Setlist, SetlistItem } from '$lib/models/setlist';
+import type { ReaperTransport } from '$lib/models/reaper-transport';
 import type { Song } from '$lib/models/song';
 import { configuration } from '$lib/stores/configuration.svelte';
 import { MockReaperFetch } from './mock-reaper-fetch';
@@ -79,6 +80,15 @@ describe('MockReaperFetch via ReaperBackend', () => {
 		expect(paused.playState).toBe(PLAYSTATE_PAUSED);
 	});
 
+	it('seeks to an arbitrary position via SET/POS_STR/<seconds>', async () => {
+		await backend.reaper.newTab();
+		await backend.script.openProject('/mock/projects/SongA.rpp');
+
+		await mock.fetch('http://x/_/SET/POS_STR/42.5');
+		const transport = await backend.reaper.getTransport();
+		expect(transport.positionSeconds).toBeCloseTo(42.5, 3);
+	});
+
 	it('round-trips songs through the KVS', async () => {
 		const song: Omit<Song, 'id'> = {
 			name: 'Test Song',
@@ -120,9 +130,14 @@ describe('MockReaperFetch via ReaperBackend', () => {
 });
 
 describe('PlaybackEngine + MockReaperFetch end-to-end', () => {
-	const items: SetlistItem[] = [
+	const playItems: SetlistItem[] = [
 		{ songId: 'a', playConfig: { mode: 'pause' } },
 		{ songId: 'b', playConfig: { mode: 'play' } }
+	];
+
+	const crossoverItems: SetlistItem[] = [
+		{ songId: 'a', playConfig: { mode: 'pause' } },
+		{ songId: 'b', playConfig: { mode: 'crossover', leadSeconds: 5 } }
 	];
 
 	async function openTwoTabs(): Promise<void> {
@@ -131,6 +146,16 @@ describe('PlaybackEngine + MockReaperFetch end-to-end', () => {
 		await backend.reaper.newTab();
 		await backend.script.openProject('/mock/projects/SongB.rpp');
 		await backend.reaper.previousTab();
+	}
+
+	function tickAt(positionSeconds: number): ReaperTransport {
+		return {
+			playState: PLAYSTATE_PLAYING,
+			positionSeconds,
+			repeatOn: false,
+			positionString: '',
+			positionStringBeats: ''
+		};
 	}
 
 	it('advances the active tab when end-of-song is reached', async () => {
@@ -142,25 +167,44 @@ describe('PlaybackEngine + MockReaperFetch end-to-end', () => {
 		const engine = new PlaybackEngine(backend.reaper, {
 			onAdvanced: () => resolveAdvanced()
 		});
-		engine.setItems(items);
+		engine.setItems(playItems);
 		engine.setCurrentIndex(0);
 
 		// Drive a tick at end-of-song. The transport object passed here (not
 		// the mock's internal position) drives the engine's decision.
-		engine.onTransportTick(
-			{
-				playState: PLAYSTATE_PLAYING,
-				positionSeconds: 60,
-				repeatOn: false,
-				positionString: '',
-				positionStringBeats: ''
-			},
-			60
-		);
+		engine.onTransportTick(tickAt(60), 60);
 
 		await advanced;
 
 		const { activeIndex } = await backend.script.getOpenTabs();
+		expect(activeIndex).toBe(1);
+		const transport = await backend.reaper.getTransport();
+		expect(transport.playState).toBe(PLAYSTATE_PLAYING);
+
+		engine.dispose();
+	});
+
+	it('fires crossover leadSeconds before the end and starts the next tab', async () => {
+		await openTwoTabs();
+		await backend.reaper.play();
+
+		let resolveAdvanced!: () => void;
+		const advanced = new Promise<void>((r) => (resolveAdvanced = r));
+		const engine = new PlaybackEngine(backend.reaper, {
+			onAdvanced: () => resolveAdvanced()
+		});
+		engine.setItems(crossoverItems);
+		engine.setCurrentIndex(0);
+
+		// Lead is 5s. With songEnd=60 these ticks have 6s and then 5s remaining.
+		engine.onTransportTick(tickAt(54), 60); // 6s remaining — no fire yet
+		let { activeIndex } = await backend.script.getOpenTabs();
+		expect(activeIndex).toBe(0);
+
+		engine.onTransportTick(tickAt(55), 60); // 5s remaining — fire
+		await advanced;
+
+		({ activeIndex } = await backend.script.getOpenTabs());
 		expect(activeIndex).toBe(1);
 		const transport = await backend.reaper.getTransport();
 		expect(transport.playState).toBe(PLAYSTATE_PLAYING);

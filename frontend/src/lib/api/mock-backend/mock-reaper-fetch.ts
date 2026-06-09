@@ -118,15 +118,23 @@ export class MockReaperFetch {
 			return [];
 		}
 
-		// Marker jump: SET/POS_STR/m{markerId}
+		// Position seek:
+		//   SET/POS_STR/m{markerId} — jump to a named marker
+		//   SET/POS_STR/<seconds>   — jump to an absolute position (Reaper accepts
+		//                              a variety of time formats here; we support
+		//                              the plain-seconds form which is enough for
+		//                              tests/automation).
 		if (cmd.startsWith('SET/POS_STR/')) {
 			const target = cmd.slice('SET/POS_STR/'.length);
-			if (target.startsWith('m')) {
-				const id = parseInt(target.slice(1), 10);
-				const tab = this.activeTab();
-				if (tab) {
+			const tab = this.activeTab();
+			if (tab) {
+				if (target.startsWith('m')) {
+					const id = parseInt(target.slice(1), 10);
 					const marker = tab.markers.find((m) => m.id === id);
 					if (marker) tab.position = marker.position;
+				} else {
+					const seconds = Number(target);
+					if (Number.isFinite(seconds) && seconds >= 0) tab.position = seconds;
 				}
 			}
 			return [];
