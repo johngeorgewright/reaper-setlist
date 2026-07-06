@@ -5,6 +5,7 @@
 	import { getApi } from '$lib/api/api';
 	import Button from '$lib/components/Button/Button.svelte';
 	import type { Database } from '$lib/models/database';
+	import { SONG_END_MARKER, SONG_START_MARKER } from '$lib/models/reaper-marker';
 	import type { NewSong, Song } from '$lib/models/song';
 
 	export interface SongEditorProps<T extends SongLike> {
@@ -64,11 +65,26 @@
 			await api.script.openProject(song.path);
 			openedNewTab = true;
 		}
+		// Read the markers alongside the length so we can tell the user whether
+		// the duration was measured between the `=START`/`=END` markers or fell
+		// back to the full project length.
+		const markers = await api.reaper.getMarkers();
 		song.length = Math.ceil(await api.script.getProjectLength());
 		if (openedNewTab) {
 			await api.reaper.closeTab();
 		}
-		notifications.success('Duration retrieved from Reaper!');
+
+		const hasStart = markers.some((m) => m.name === SONG_START_MARKER);
+		const hasEnd = markers.some((m) => m.name === SONG_END_MARKER);
+		if (hasStart && hasEnd) {
+			notifications.success(`Duration measured between the ${SONG_START_MARKER} and ${SONG_END_MARKER} markers.`);
+		} else if (hasStart) {
+			notifications.success(`Duration measured from the ${SONG_START_MARKER} marker to the end of the project.`);
+		} else if (hasEnd) {
+			notifications.success(`Duration measured from the project start to the ${SONG_END_MARKER} marker.`);
+		} else {
+			notifications.info(`No ${SONG_START_MARKER}/${SONG_END_MARKER} markers found — used the full project length.`);
+		}
 	}
 </script>
 

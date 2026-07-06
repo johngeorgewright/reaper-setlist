@@ -77,7 +77,7 @@
 			? 0
 			: allTabs.slice(0, currentSongIndex).reduce((total, tab) => {
 					return total + (tab.length || 0);
-				}, 0) + currentSongTime
+				}, 0) + songElapsed
 	);
 	let transportUpdateHandle = $state<number | null>(null);
 	let tabsUpdateHandle = $state<number | null>(null);
@@ -95,7 +95,13 @@
 
 	// Time calculations
 	const totalSongDuration = $derived(currentTab?.length || 0);
-	const remainingSongTime = $derived(Math.max(0, totalSongDuration - currentSongTime));
+	// Position relative to the song's `=START` marker. Reaper reports an
+	// absolute project position (e.g. 0:43 when the song starts at the `=START`
+	// marker), but the displayed length is the marker span. Subtracting the
+	// start offset keeps the progress in the range `0:00 → length` so it reads
+	// naturally (e.g. `0:00 / 1:55` … `1:55 / 1:55`).
+	const songElapsed = $derived(Math.max(0, Math.min(totalSongDuration, currentSongTime - songStart)));
+	const remainingSongTime = $derived(Math.max(0, totalSongDuration - songElapsed));
 	const totalSetDuration = $derived(
 		!allTabs
 			? 0
@@ -112,7 +118,7 @@
 						const tab = allTabs[i];
 						const songDuration = tab.length || 0;
 						if (i === currentSongIndex) {
-							remaining += Math.max(0, songDuration - currentSongTime);
+							remaining += Math.max(0, songDuration - songElapsed);
 						} else {
 							remaining += songDuration;
 						}
@@ -122,7 +128,7 @@
 	);
 
 	// Progress percentages
-	const songProgress = $derived(totalSongDuration === 0 ? 0 : Math.min(100, (currentSongTime / totalSongDuration) * 100));
+	const songProgress = $derived(totalSongDuration === 0 ? 0 : Math.min(100, (songElapsed / totalSongDuration) * 100));
 	const setProgress = $derived(totalSetDuration === 0 ? 0 : Math.min(100, (totalSetTime / totalSetDuration) * 100));
 
 	// Format time for display
@@ -380,7 +386,7 @@
 				<div class="progress-group">
 					<div class="progress-label">
 						<span>Song Progress</span>
-						<span class="time-display">{formatTime(currentSongTime)} / {formatTime(totalSongDuration)}</span>
+						<span class="time-display">{formatTime(songElapsed)} / {formatTime(totalSongDuration)}</span>
 					</div>
 					<div class="progress-bar-container">
 						<div class="progress-bar">

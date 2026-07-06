@@ -1,4 +1,5 @@
 import type { ReaperApiClient } from '../api/reaper-backend/reaper-api';
+import { SONG_START_MARKER } from '../models/reaper-marker';
 import type { ReaperTransport } from '../models/reaper-transport';
 import { PLAYSTATE_PLAYING } from '../models/reaper-transport';
 import type { PlayConfig, SetlistItem } from '../models/setlist';
@@ -93,12 +94,19 @@ export class PlaybackEngine {
 
 		this.firedForIndex = this.currentIndex;
 
+		// Crossover intentionally overlaps the two songs, so the previous project
+		// keeps playing while the next starts. Every other mode is a clean cut:
+		// stop the outgoing song before switching so it doesn't play on underneath
+		// the next one (project tabs keep their own transport running, especially
+		// when "Run background projects" is enabled).
+		const stopPrevious = upcoming.playConfig.mode !== 'crossover';
+
 		if (trigger.delayMs > 0) {
-			this.scheduleAdvance(trigger.delayMs);
+			this.scheduleAdvance(trigger.delayMs, stopPrevious);
 			return { kind: 'scheduleAdvance', afterMs: trigger.delayMs };
 		}
 
-		void this.advance();
+		void this.advance(stopPrevious);
 		return { kind: 'advance' };
 	}
 
@@ -113,11 +121,11 @@ export class PlaybackEngine {
 		this.cancelTimer();
 	}
 
-	private scheduleAdvance(delayMs: number): void {
+	private scheduleAdvance(delayMs: number, stopPrevious: boolean): void {
 		this.cancelTimer();
 		this.timerHandle = setTimeout(() => {
 			this.timerHandle = null;
-			void this.advance();
+			void this.advance(stopPrevious);
 		}, delayMs);
 	}
 
@@ -128,11 +136,23 @@ export class PlaybackEngine {
 		}
 	}
 
-	private async advance(): Promise<void> {
-		// `nextTab` returns `{ markers, transport }` but we only need to issue
-		// the tab change; the host will pick up the new state on its next poll
-		// (or immediately if it implements `onAdvanced`).
-		await this.reaper.nextTab();
+	private async advance(stopPrevious: boolean): Promise<void> {
+		// For a clean cut, stop the outgoing project's transport before switching
+		// tabs (`stop` acts on the currently active project). Crossover skips this
+		// so the previous song keeps playing under the next one.
+		if (stopPrevious) {
+			await this.reaper.stop();
+		}
+		// `nextTab` switches to the next project tab and returns its markers, so we
+		// can drop the play cursor onto the song's `=START` marker (when present)
+		// before starting playback. This skips any lead-in silence and keeps the
+		// next `=END` boundary aligned with the song. The host picks up the new
+		// state on its next poll (or immediately via `onAdvanced`).
+		const { markers } = await this.reaper.nextTab();
+		const start = markers.find((m) => m.name === SONG_START_MARKER);
+		if (start) {
+			await this.reaper.goToMarker(start.id);
+		}
 		await this.reaper.play();
 		this.sink.onAdvanced?.();
 	}

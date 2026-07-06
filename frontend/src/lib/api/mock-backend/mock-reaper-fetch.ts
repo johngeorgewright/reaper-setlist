@@ -6,6 +6,7 @@ import {
 	PLAYSTATE_STOPPED
 } from '$lib/models/reaper-transport';
 import type { ReaperMarker } from '$lib/models/reaper-marker';
+import { getSongEnd, getSongStart } from '$lib/models/reaper-marker';
 import type { ReaperTab } from '$lib/models/reaper-tab';
 import { SectionKeys, ScriptOperationKey } from '../reaper-backend/reaper-state';
 
@@ -314,14 +315,14 @@ export class MockReaperFetch {
 		},
 		getProjectLength: () => {
 			const tab = this.activeTab();
-			const length = tab?.length ?? 0;
+			const length = tab ? this.songLengthFor(tab) : 0;
 			this.setExtState(SectionKeys.ReaperSetlist, 'projectLength', length.toFixed(6));
 		},
 		getOpenTabs: () => {
 			const tabs: ReaperTab[] = this.tabs.map((t) => ({
 				index: t.index,
 				name: t.name,
-				length: t.length,
+				length: this.songLengthFor(t),
 				dirty: t.dirty
 			}));
 			this.setExtState(SectionKeys.ReaperSetlist, 'tabs', JSON.stringify(tabs));
@@ -412,6 +413,17 @@ export class MockReaperFetch {
 		}
 	}
 
+	/**
+	 * Song length derived from a tab's `=START`/`=END` markers, mirroring the
+	 * Lua `song_length` helper (span between the markers, falling back to the
+	 * full project length when a marker is missing).
+	 */
+	private songLengthFor(tab: MockTab): number {
+		const end = getSongEnd(tab.markers, tab.length);
+		const start = getSongStart(tab.markers);
+		return Math.max(0, end - start);
+	}
+
 	/** Deterministic 60–300s length keyed by project path. */
 	private simulatedLengthFor(path: string): number {
 		let h = 0;
@@ -421,9 +433,12 @@ export class MockReaperFetch {
 
 	/** Always include `=START` and `=END` markers so playback logic can be exercised. */
 	private simulatedMarkersFor(path: string, length: number): ReaperMarker[] {
+		// Offset `=START` by a small count-in so the marker-based start position
+		// (and length) is distinguishable from the raw project start at 0.
+		const start = Math.min(2, Math.max(0, length - 1));
 		return [
-			{ id: 1, name: '=START', position: 0 },
-			{ id: 2, name: '=END', position: Math.max(0, length - 1) }
+			{ id: 1, name: '=START', position: start },
+			{ id: 2, name: '=END', position: Math.max(start, length - 1) }
 		];
 	}
 

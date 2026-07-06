@@ -1,9 +1,12 @@
+local GetSongLength = require "song_length"
+
 ---@return number project_length
 local function GetLength()
-    -- Get the current project length in seconds
+    -- Report the song length derived from the `=START`/`=END` markers of the
+    -- current project (falling back to the full project length when markers are
+    -- absent). This is what the song editor stores as a song's duration.
     local project = reaper.EnumProjects(-1)
-    local project_length = reaper.GetProjectLength(project)
-    return project_length
+    return GetSongLength(project)
 end
 
 return GetLength

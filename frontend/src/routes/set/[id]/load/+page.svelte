@@ -7,6 +7,7 @@
 	import type { StepStatus } from '$lib/components/Step/Step.svelte';
 	import Step from '$lib/components/Step/Step.svelte';
 	import type { Database } from '$lib/models/database';
+	import { SONG_START_MARKER } from '$lib/models/reaper-marker';
 	import type { ReaperTab } from '$lib/models/reaper-tab';
 	import type { Setlist } from '$lib/models/setlist';
 	import type { Song } from '$lib/models/song';
@@ -145,7 +146,15 @@
 
 	async function goToStart(): Promise<boolean> {
 		try {
-			await api.reaper.goToStart();
+			// The song's project is active in the current tab at this point, so
+			// prefer its `=START` marker over the raw project start (position 0).
+			const markers = await api.reaper.getMarkers();
+			const startMarker = markers.find((m) => m.name === SONG_START_MARKER);
+			if (startMarker) {
+				await api.reaper.goToMarker(startMarker.id);
+			} else {
+				await api.reaper.goToStart();
+			}
 			return true;
 		} catch (error) {
 			notifications.error(`Failed to move playhead to start: ${(error as Error).message}`);

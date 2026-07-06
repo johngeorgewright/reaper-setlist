@@ -23,8 +23,23 @@ function transport(positionSeconds: number, state: PlayState = PLAYSTATE_PLAYING
 function fakeReaper() {
 	return {
 		nextTab: vi.fn(async () => ({ markers: [], transport: transport(0, PLAYSTATE_STOPPED) })),
-		play: vi.fn(async () => transport(0, PLAYSTATE_PLAYING))
-	} as unknown as ReaperApiClient & { nextTab: ReturnType<typeof vi.fn>; play: ReturnType<typeof vi.fn> };
+		play: vi.fn(async () => transport(0, PLAYSTATE_PLAYING)),
+		stop: vi.fn(async () => transport(0, PLAYSTATE_STOPPED))
+	} as unknown as ReaperApiClient & {
+		nextTab: ReturnType<typeof vi.fn>;
+		play: ReturnType<typeof vi.fn>;
+		stop: ReturnType<typeof vi.fn>;
+	};
+}
+
+/**
+ * `advance()` is fire-and-forget and now chains several awaited API calls
+ * (`stop` → `nextTab` → `play`). Flush enough microtasks for the whole chain
+ * to settle before asserting on the spies.
+ */
+async function flushAdvance() {
+	await vi.runAllTicks();
+	for (let i = 0; i < 5; i++) await Promise.resolve();
 }
 
 describe('shouldTrigger', () => {
@@ -95,27 +110,37 @@ describe('PlaybackEngine', () => {
 		const decision = engine.onTransportTick(transport(60), 60);
 		expect(decision).toEqual({ kind: 'advance' });
 		// `advance()` is fire-and-forget; await microtasks.
-		await vi.runAllTicks();
-		await Promise.resolve();
+		await flushAdvance();
 		expect(reaper.nextTab).toHaveBeenCalledTimes(1);
 		expect(reaper.play).toHaveBeenCalledTimes(1);
 	});
 
-	it('fires only once per boundary even across multiple ticks', () => {
+	it('stops the previous song before switching for a clean cut', async () => {
+		engine.setItems(items([{ mode: 'pause' }, { mode: 'play' }]));
+		engine.setCurrentIndex(0);
+		engine.onTransportTick(transport(60), 60);
+		await flushAdvance();
+		expect(reaper.stop).toHaveBeenCalledTimes(1);
+		expect(reaper.nextTab).toHaveBeenCalledTimes(1);
+	});
+
+	it('fires only once per boundary even across multiple ticks', async () => {
 		engine.setItems(items([{ mode: 'pause' }, { mode: 'play' }]));
 		engine.setCurrentIndex(0);
 		engine.onTransportTick(transport(60), 60);
 		engine.onTransportTick(transport(60.5), 60);
 		engine.onTransportTick(transport(61), 60);
+		await flushAdvance();
 		expect(reaper.nextTab).toHaveBeenCalledTimes(1);
 	});
 
-	it('re-arms after the current index changes', () => {
+	it('re-arms after the current index changes', async () => {
 		engine.setItems(items([{ mode: 'pause' }, { mode: 'play' }, { mode: 'play' }]));
 		engine.setCurrentIndex(0);
 		engine.onTransportTick(transport(60), 60); // fires for boundary 0→1
 		engine.setCurrentIndex(1);
 		engine.onTransportTick(transport(60), 60); // fires for boundary 1→2
+		await flushAdvance();
 		expect(reaper.nextTab).toHaveBeenCalledTimes(2);
 	});
 
@@ -130,8 +155,7 @@ describe('PlaybackEngine', () => {
 		expect(reaper.nextTab).not.toHaveBeenCalled();
 
 		vi.advanceTimersByTime(2);
-		await vi.runAllTicks();
-		await Promise.resolve();
+		await flushAdvance();
 		expect(reaper.nextTab).toHaveBeenCalledTimes(1);
 	});
 
@@ -151,5 +175,15 @@ describe('PlaybackEngine', () => {
 		expect(reaper.nextTab).not.toHaveBeenCalled();
 		engine.onTransportTick(transport(56), 60); // 4s remaining — fire
 		expect(reaper.nextTab).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not stop the previous song for crossover (overlap)', async () => {
+		engine.setItems(items([{ mode: 'pause' }, { mode: 'crossover', leadSeconds: 4 }]));
+		engine.setCurrentIndex(0);
+		engine.onTransportTick(transport(56), 60); // 4s remaining — fire
+		await flushAdvance();
+		expect(reaper.stop).not.toHaveBeenCalled();
+		expect(reaper.nextTab).toHaveBeenCalledTimes(1);
+		expect(reaper.play).toHaveBeenCalledTimes(1);
 	});
 });

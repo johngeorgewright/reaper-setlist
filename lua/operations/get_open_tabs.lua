@@ -1,3 +1,5 @@
+local GetSongLength = require "song_length"
+
 ---@return ReaperTab[]
 ---@return number active_index
 local GetOpenTabs = function()
@@ -19,7 +21,7 @@ local GetOpenTabs = function()
             break
         end
 
-        local duration = reaper.GetProjectLength(proj)
+        local duration = GetSongLength(proj)
 
         -- Normalize the path to ensure consistency
         local normalized_tab_name = tab_name:gsub("\\", "/")
