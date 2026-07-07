@@ -56,13 +56,10 @@
 			// 41816 = "Project tabs: Run background projects (process audio when not active)".
 			// The action is a toggle; we only get here when it's off, so this turns it on.
 			await api.reaper.sendCommand('41816');
-			notifications.info(
-				'Enabled "Project tabs: Run background projects" so crossover transitions can overlap songs.'
-			);
+			notifications.info('Enabled "Project tabs: Run background projects" so crossover transitions can overlap songs.');
 		} catch (error) {
 			notifications.warning(
-				'Could not verify "Project tabs: Run background projects". Crossover transitions may cut the previous song. ' +
-					`(${(error as Error).message})`
+				'Could not verify "Project tabs: Run background projects". Crossover transitions may cut the previous song. ' + `(${(error as Error).message})`
 			);
 		}
 	}
@@ -200,9 +197,7 @@
 			// Prefer the `=START` marker when the song defines one; otherwise the
 			// underlying Reaper "Go to start" action (40042) drops us to position 0.
 			const startMarker = songMarkers.find((m) => m.name === '=START');
-			const transport = startMarker
-				? await api.reaper.goToMarker(startMarker.id)
-				: await api.reaper.goToStart();
+			const transport = startMarker ? await api.reaper.goToMarker(startMarker.id) : await api.reaper.goToStart();
 			updateTransport(transport);
 		} catch (error) {
 			notifications.error(`Failed to jump to song start: ${(error as Error).message}`);

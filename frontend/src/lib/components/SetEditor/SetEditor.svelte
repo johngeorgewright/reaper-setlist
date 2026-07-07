@@ -41,9 +41,7 @@
 			.filter((s) => !setlist.items.some((item) => item.songId === s.id))
 			.toSorted((a, b) => a.name.localeCompare(b.name))[0]?.id || null
 	);
-	let totalTime = $derived(
-		setlist.items.reduce((acc, item) => acc + (songs[item.songId]?.length ?? 0), 0)
-	);
+	let totalTime = $derived(setlist.items.reduce((acc, item) => acc + (songs[item.songId]?.length ?? 0), 0));
 
 	let draggingIndex: number | undefined = $state(undefined);
 	let draggingTargetIndex: number | undefined = $state(undefined);
@@ -129,10 +127,7 @@
 						<Button color="delete" onclick={() => setlist.items.splice(i, 1)} variant="icon"><DeleteIcon /></Button>
 					</div>
 					{#if i < setlist.items.length - 1}
-						<PlayConfigEditor
-							config={setlist.items[i + 1].playConfig}
-							onChange={(config: PlayConfig) => (setlist.items[i + 1].playConfig = config)}
-						/>
+						<PlayConfigEditor config={setlist.items[i + 1].playConfig} onChange={(config: PlayConfig) => (setlist.items[i + 1].playConfig = config)} />
 					{/if}
 				</div>
 			{/each}

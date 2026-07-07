@@ -51,26 +51,12 @@
 
 	{#if config.mode === 'timer'}
 		<label class="numeric">
-			<input
-				type="number"
-				min="0"
-				step="0.5"
-				value={config.delaySeconds}
-				oninput={onDelayChange}
-				aria-label="Wait seconds before playing next"
-			/>
+			<input type="number" min="0" step="0.5" value={config.delaySeconds} oninput={onDelayChange} aria-label="Wait seconds before playing next" />
 			<span>s</span>
 		</label>
 	{:else if config.mode === 'crossover'}
 		<label class="numeric">
-			<input
-				type="number"
-				min="0"
-				step="0.5"
-				value={config.leadSeconds}
-				oninput={onLeadChange}
-				aria-label="Crossover lead seconds"
-			/>
+			<input type="number" min="0" step="0.5" value={config.leadSeconds} oninput={onLeadChange} aria-label="Crossover lead seconds" />
 			<span>s lead</span>
 		</label>
 	{/if}

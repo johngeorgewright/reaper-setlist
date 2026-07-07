@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { getSongEnd, getSongStart, type ReaperMarker } from './reaper-marker';
 
-const marker = (id: number, name: string, position: number): ReaperMarker => ({ id, name, position });
+const marker = (id: number, name: string, position: number): ReaperMarker => ({
+	id,
+	name,
+	position
+});
 
 describe('getSongStart', () => {
 	it('returns 0 when no =START marker exists', () => {
